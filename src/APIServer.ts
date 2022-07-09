@@ -25,7 +25,6 @@ export class APIServer {
     this.hostname = hostname;
     this.port = port;
     this.initLogger();
-    //definicion de endpoints
     this.initEndpoints();
   }
 
@@ -53,8 +52,11 @@ export class APIServer {
         context.response.status = Status.OK;
         context.response.body = "Hello world!";
 
-    }
-    );
+    });
+
+    //esto es importante, no olvidarlo
+    this.app.use(this.router.routes());
+    this.app.use(this.router.allowedMethods());
 }
 
   private initLogger() {
