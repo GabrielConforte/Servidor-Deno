@@ -1,6 +1,7 @@
 import { Application, Router, Context, Status, STATUS_TEXT } from "https://deno.land/x/oak/mod.ts";
 import { green, cyan, bold } from "https://deno.land/std@0.51.0/fmt/colors.ts";
-
+import { ProductosController, Productos, ProductosResponse } from "./controllers/ProductosController.ts";
+import { ProductosResponseStatus } from "./controllers/ProductosController";
 export interface ServerOptions {
   port: number;
   hostname: string;
@@ -11,7 +12,7 @@ export class APIServer {
   private app = new Application();
   private router = new Router({methods: ["DELETE", "GET", "POST", "PUT"]});
   private abortController = new AbortController();
-  
+  private productosController: ProductosController = new ProductosController();
   public hostname: string;
   public port: number;
   public isRunning: boolean = false;
@@ -24,6 +25,7 @@ export class APIServer {
 
     this.hostname = hostname;
     this.port = port;
+    this.productosController.connectWithOptions({ hostname: "localhost", port: 27017, db: "deno_db", username: "", password: "" });
     this.initLogger();
     this.initEndpoints();
   }
@@ -51,9 +53,38 @@ export class APIServer {
     this.router.get("/", async (context) => {
         context.response.status = Status.OK;
         context.response.body = "Hello world!";
-
     });
 
+    this.router.get("/productos", async (context) => {
+      let result = await this.productosController.getProductos();
+      context.response.status = this.GetHTTPStatus(result.status);
+      context.response.body = result.value;
+  });
+
+    this.router.get("/productos/:id", async (context) => {
+      let result = await this.productosController.getProductoById(context.params.id);
+      context.response.status = this.GetHTTPStatus(result.status);
+      context.response.body = result.value;
+  });
+
+    this.router.post("/productos", async (context) => {
+      let result = await this.productosController.createProducto(context.request.body);
+      context.response.status = this.GetHTTPStatus(result.status);
+      context.response.body = result.value;
+  });
+  
+    this.router.put("/productos/:id", async (context) => {
+      let result = await this.productosController.updateProducto(context.params.id, context.request.body);
+      context.response.status = this.GetHTTPStatus(result.status);
+      context.response.body = result.value;
+  });
+
+    this.router.delete("/productos/id", async (context) => {
+      let result = await this.productosController.deleteProducto(context.params.id);
+      context.response.status = this.GetHTTPStatus(result.status);
+      context.response.body = result.value;
+      
+  });
     //esto es importante, no olvidarlo
     this.app.use(this.router.routes());
     this.app.use(this.router.allowedMethods());
@@ -68,6 +99,21 @@ export class APIServer {
       console.log(bold(this.getFormatedDatetime())+" "+bold(green(context.request.method))+" "+bold(cyan(context.request.url.pathname))+" status:"+bold(status)+" duration:"+bold(duration));
     });
   }
+
+  private GetHTTPStatus(status: number): number {
+    switch (status) {
+      case ProductosResponseStatus.OK:
+        return Status.OK;
+      case ProductosResponseStatus.PRODUCTO_NO_ENCONTRADO:
+        return Status.NotFound;
+      case ProductosResponseStatus.DATA_INVALID:
+        return Status.BadRequest;
+      case ProductosResponseStatus.ERROR_DE_SERVIDOR:
+        return Status.InternalServerError;
+      default:
+        return Status.OK;
+    }
+    }
 
   private pad2(n: any) {
     return n < 10 ? '0' + n : n;
